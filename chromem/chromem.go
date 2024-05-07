@@ -3,6 +3,7 @@ package chromem
 import (
 	"context"
 	"fmt"
+	"github/pbreedt/ollama-embeddings/data"
 	"log"
 	"runtime"
 	"strconv"
@@ -21,29 +22,22 @@ func AutoEmbedding() {
 
 	db := chromem.NewDB()
 	// use ollama embedding
-	c, err := db.GetOrCreateCollection("colours", nil, chromem.NewEmbeddingFuncOllama(embModel, "http://localhost:11434/api"))
+	c, err := db.GetOrCreateCollection("llamas", nil, chromem.NewEmbeddingFuncOllama(embModel, "http://localhost:11434/api"))
 	// use openAI embedding
 	// c, err := db.GetOrCreateCollection("colours", nil, nil)
 	if err != nil {
 		panic(err)
 	}
 
+	dt := data.ChromemDocs()
 	// Embedding not provided, chromem-go will calculate and add
-	err = c.AddDocuments(ctx, []chromem.Document{
-		{
-			ID:      "1",
-			Content: "The sky is blue because of Rayleigh scattering.",
-		},
-		{
-			ID:      "2",
-			Content: "Leaves are green because chlorophyll absorbs red and blue light.",
-		},
-	}, runtime.NumCPU())
+	err = c.AddDocuments(ctx, dt, runtime.NumCPU())
 	if err != nil {
 		panic(err)
 	}
 
-	query := "Why is the sky blue?"
+	query := data.Queries()[0]
+	fmt.Printf("Query: %s\n", query)
 	if embModel == "nomic-embed-text" {
 		// "nomic-embed-text" specific prefix (not required with OpenAI's or other models)
 		query = "search_query: " + query
@@ -54,21 +48,14 @@ func AutoEmbedding() {
 	}
 
 	for _, r := range res {
-		fmt.Printf("ID: %v\nSimilarity: %v\nContent: %v\n", r.ID, r.Similarity, r.Content)
+		fmt.Printf("Cromem Result: %s (Similarity:%v)\n", r.Content, r.Similarity)
 	}
 
 	// fmt.Printf("ID: %v\nSimilarity: %v\nContent: %v\n", res[0].ID, res[0].Similarity, res[0].Content)
 }
 
 func ManualEmbedding() {
-	docs := []string{
-		"Llamas are members of the camelid family meaning they're pretty closely related to vicuñas and camels",
-		"Llamas were first domesticated and used as pack animals 4,000 to 5,000 years ago in the Peruvian highlands",
-		"Llamas can grow as much as 6 feet tall though the average llama is between 5 feet 6 inches and 5 feet 9 inches tall",
-		"Llamas weigh between 280 and 450 pounds and can carry 25 to 30 percent of their body weight",
-		"Llamas are vegetarians and have very efficient digestive systems",
-		"Llamas live to be about 20 years old, though some only live for 15 years and others live to be 30 years old",
-	}
+	docs := data.EmbedData()
 	ctx := context.Background()
 	db := chromem.NewDB()
 	// db, err := chromem.NewPersistentDB("./emb.db", false)
@@ -113,15 +100,18 @@ func ManualEmbedding() {
 		}
 	}
 
-	query := "What animals are llamas related to?" //"How much does a llama weigh?"
-	if embModel == "nomic-embed-text" {
-		// "nomic-embed-text" specific prefix (not required with OpenAI's or other models)
-		query = "search_query: " + query
-	}
-	res, err := col.Query(ctx, query, 1, nil, nil)
-	if err != nil {
-		panic(err)
-	}
+	quesions := data.Queries()
+	for _, q := range quesions {
+		if embModel == "nomic-embed-text" {
+			// "nomic-embed-text" specific prefix (not required with OpenAI's or other models)
+			q = "search_query: " + q
+		}
+		res, err := col.Query(ctx, q, 1, nil, nil)
+		if err != nil {
+			panic(err)
+		}
 
-	fmt.Printf("ID: %v\nSimilarity: %v\nContent: %v\n", res[0].ID, res[0].Similarity, res[0].Content)
+		fmt.Printf("Query: %s\n", q)
+		fmt.Printf("Cromem Result: %s (Similarity:%v)\n", res[0].Content, res[0].Similarity)
+	}
 }
